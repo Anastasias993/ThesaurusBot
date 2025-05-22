@@ -1,3 +1,4 @@
+#Импорт необходимых модулей из библиотеки python-telegram-bot
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -6,9 +7,9 @@ from telegram.ext import (
     filters,
     ContextTypes
 )
-
+#Токен бота
 TOKEN = "7828105755:AAEuc-u-XtNStadlLoSYW5hm8fJeBhKcMQY"
-
+#Тематики слов и принадлежащий им список слов
 topics = {
     "Образование": [
         ("Student", "Студент (м.), Студентка (ж.)"),
@@ -72,6 +73,7 @@ topics = {
     ]
 }
 
+#Функция создания основной клавиатуры меню
 def get_main_keyboard():
     buttons = [
         [KeyboardButton("Выбор темы")],
@@ -82,6 +84,7 @@ def get_main_keyboard():
     ]
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
+#Функция создания клавиатуры для выбора темы 
 def get_topics_keyboard():
     topics_buttons = [[KeyboardButton(topic)] for topic in topics]
     topics_buttons.append([KeyboardButton("Назад")])
@@ -94,7 +97,7 @@ def get_study_keyboard():
     ], resize_keyboard=True)
 
 
-
+#Обработка команды /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Hello! На связи бот, который поможет вам выучить новые слова по определенной теме. "
@@ -102,6 +105,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=get_main_keyboard()
     )
 
+#Обработка текстовых сообщений
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_data = context.user_data
@@ -198,6 +202,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("Неизвестная команда")
 
+#Функция запуска бота
 def main():
     app = Application.builder().token(TOKEN).build()
     
