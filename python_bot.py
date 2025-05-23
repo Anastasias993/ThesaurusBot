@@ -16,11 +16,11 @@ import os
 SEARCH_WORD = range(1)
 
 # Проверяем и создаем config.json если его нет
-if not os.path.exists('config.json'):
-    default_config = {
-        "bot_token": "7828105755:AAETPQBTZtVnVtes7kv0by1s9Fnl5WJwwiE",
+if not os.path.exists('config.json'): Токен бота
+    default_config = { 
+        "bot_token": "",
         "other_settings": {
-            "admin_id": 553012084,
+            "admin_id": айди админа,
             "debug_mode": False
         }
     }
