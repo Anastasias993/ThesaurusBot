@@ -1,15 +1,44 @@
 #Импорт необходимых модулей из библиотеки python-telegram-bot
+
 from telegram import Update, KeyboardButton, ReplyKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
     MessageHandler,
     filters,
-    ContextTypes
+    ContextTypes,
+    ConversationHandler
 )
-#Токен бота
-TOKEN = "7828105755:AAEuc-u-XtNStadlLoSYW5hm8fJeBhKcMQY"
+
+import json
+import os
+
+SEARCH_WORD = range(1)
+
+# Проверяем и создаем config.json если его нет
+if not os.path.exists('config.json'):
+    default_config = {
+        "bot_token": "7828105755:AAETPQBTZtVnVtes7kv0by1s9Fnl5WJwwiE",
+        "other_settings": {
+            "admin_id": 553012084,
+            "debug_mode": False
+        }
+    }
+    with open('config.json', 'w', encoding='utf-8') as f:
+        json.dump(default_config, f, indent=4, ensure_ascii=False)
+    print("Создан новый config.json с настройками по умолчанию")
+
+# Загружаем конфиг
+try:
+    with open('config.json', 'r', encoding='utf-8') as f:
+        config = json.load(f)
+    TOKEN = config['bot_token']
+except Exception as e:
+    print(f"Ошибка загрузки config.json: {e}")
+    TOKEN = "7828105755:AAETPQBTZtVnVtes7kv0by1s9Fnl5WJwwiE"  # fallback токен
+
 #Тематики слов и принадлежащий им список слов
+
 topics = {
     "Образование": [
         ("Student", "Студент (м.), Студентка (ж.)"),
@@ -21,7 +50,10 @@ topics = {
         ("Book", "Книга"),
         ("Lecture", "Лекция"),
         ("Grade", "Оценка"),
-        ("Diploma", "Диплом")
+        ("Diploma", "Диплом"),
+        ("Degree", "Ученая степень"),
+        ("Bachelor's degree", "бакалавриат"),
+        ("Master's degree", "магистр")
     ],
     "Медицина": [
         ("Doctor", "Доктор, врач"),
@@ -74,6 +106,7 @@ topics = {
 }
 
 #Функция создания основной клавиатуры меню
+
 def get_main_keyboard():
     buttons = [
         [KeyboardButton("Выбор темы")],
@@ -85,6 +118,7 @@ def get_main_keyboard():
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 #Функция создания клавиатуры для выбора темы 
+
 def get_topics_keyboard():
     topics_buttons = [[KeyboardButton(topic)] for topic in topics]
     topics_buttons.append([KeyboardButton("Назад")])
@@ -96,8 +130,38 @@ def get_study_keyboard():
         [KeyboardButton("Назад")]
     ], resize_keyboard=True)
 
+#Функция поиска слов
+async def start_search(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Введите слово")
+    return SEARCH_WORD
+
+async def search_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    search_term = update.message.text.lower()
+    found_words = []
+    
+    for topic, words in topics.items():
+        for eng, rus in words:
+            if search_term in eng.lower() or search_term in rus.lower():
+                found_words.append(f"{topic}: {eng} - {rus}")
+    
+    if found_words:
+        response = "Найденные слова:\n" + "\n".join(found_words)
+    else:
+        response = "Слово не найдено"
+    
+    await update.message.reply_text(response, reply_markup=get_main_keyboard())
+    return ConversationHandler.END
+
+search_conv_handler = ConversationHandler(
+    entry_points=[MessageHandler(filters.Regex("^Поиск слова$"), start_search)],
+    states={
+        SEARCH_WORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, search_word)],
+    },
+    fallbacks=[]
+)
 
 #Обработка команды /start
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Hello! На связи бот, который поможет вам выучить новые слова по определенной теме. "
@@ -106,6 +170,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 #Обработка текстовых сообщений
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_data = context.user_data
@@ -122,7 +187,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"Вы выбрали тему: {text}. Нажмите 'Следующее слово' для начала.",
             reply_markup=get_study_keyboard()
         )
-
     elif text == "Следующее слово":
         topic = user_data.get("selected_topic")
         index = user_data.get("current_index", 0)
@@ -137,7 +201,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("🎉 Вы изучили все слова в этой теме!")
         else:
             await update.message.reply_text("Сначала выберите тему через 'Выбор темы'.")
-
     elif text == "Предыдущее слово":
         topic = user_data.get("selected_topic")
         index = user_data.get("current_index", 0)
@@ -156,7 +219,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             user_data["current_index"] = 1
         else:
             await update.message.reply_text("Нет предыдущего слова.")
-
     elif text == "Перезапустить тему":
         topic = user_data.get("selected_topic")
         if topic:
@@ -166,25 +228,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await update.message.reply_text("Вы ещё не выбрали тему.")
-
-
-    elif text in topics:
-        words_list = [f"{i+1}. {eng} – {rus}" for i, (eng, rus) in enumerate(topics[text])]
-        response = f"### {text}\n" + "\n".join(words_list)
-        await update.message.reply_text(response)
-    
     elif text == "Начать изучение":
         await update.message.reply_text("Функция изучения в разработке")
-    
-    elif text == "Поиск слова":
-        await update.message.reply_text("Введите слово для поиска:")
-    
     elif text == "Помощь":
         await update.message.reply_text("Возник вопрос? Обращайтесь по адресу: @nessska_a")
-    
     elif text == "О проекте":
         await update.message.reply_text(
-            "Данный бот выполнен в качестве итогового проекта студентами программы'Цифровой переводчик. Постредактор PRO':\n"
+            "Данный бот выполнен в качестве итогового проекта студентами программы 'Цифровой переводчик. Постредактор PRO':\n"
             "Савиных Анастасия - тимлид\n"
             "Чухванцева Дарья\n"
             "Шарифуллин Руслан\n"
@@ -192,13 +242,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Рахмонкулов Азизбек\n"
             "Яруллин Эльдар"
         )
-    
     elif text == "Назад":
         await update.message.reply_text(
             "Главное меню:",
             reply_markup=get_main_keyboard()
         )
-    
     else:
         await update.message.reply_text("Неизвестная команда")
 
@@ -207,7 +255,8 @@ def main():
     app = Application.builder().token(TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT, handle_message))
+    app.add_handler(search_conv_handler)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("Бот успешно запущен!")
     app.run_polling()
